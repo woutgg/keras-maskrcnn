@@ -18,6 +18,8 @@ import numpy as np
 import random
 import warnings
 
+from cv2 import cv2
+
 import keras
 
 from keras_retinanet.utils.anchors import (
@@ -153,8 +155,20 @@ class Generator(keras.utils.Sequence):
 
         return image, annotations
 
-    def resize_image(self, image):
-        return resize_image(image, min_side=self.image_min_side, max_side=self.image_max_side)
+    def resize_image(self, image, size=None):
+        """ Resizes the given image to the given size, or using image_min_side
+        and image_max_side if size is None.
+        """
+        if size:
+            return (cv2.resize(image, size), None)
+        else:
+            return resize_image(image, min_side=self.image_min_side, max_side=self.image_max_side)
+
+    def get_image_ratio_difference(self, base_size, cmp_size):
+        """Returns the relative difference between two image size ratios."""
+        br = base_size[1] / base_size[0]
+        cr = cmp_size[1] / cmp_size[0]
+        return abs(br - cr) / br
 
     def preprocess_image(self, image):
         return preprocess_image(image)
@@ -172,8 +186,18 @@ class Generator(keras.utils.Sequence):
         image, image_scale = self.resize_image(image)
 
         # resize masks
+        # Note: instead of scaling based on min/max sides, we use the scaled image resolution directly.
+        MAX_RELATIVE_RATIO_DIFF = 0.005  # .5 percent
+        tgt_size = (image.shape[1], image.shape[0])
+
         for i in range(len(annotations['masks'])):
-            annotations['masks'][i], _ = self.resize_image(annotations['masks'][i])
+            mask_shape = annotations['masks'][i].shape
+            rr_diff = self.get_image_ratio_difference(tgt_size, (mask_shape[1], mask_shape[0]))
+
+            if rr_diff > MAX_RELATIVE_RATIO_DIFF:
+                warnings.warn(f'Image and mask ratios relative difference too large ({rr_diff} > {MAX_RELATIVE_RATIO_DIFF}).')
+
+            annotations['masks'][i], _ = self.resize_image(annotations['masks'][i], tgt_size)
 
         # apply resizing to annotations too
         annotations['bboxes'] *= image_scale
