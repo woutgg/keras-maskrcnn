@@ -31,7 +31,8 @@ from keras_retinanet.utils.model import freeze as freeze_model
 from keras_retinanet.utils.transform import random_transform_generator
 
 # Allow relative imports when being executed as script.
-if __name__ == "__main__" and __package__ is None:
+# Note: when debugging from VS Code, __package__ is set to "", hence the additional check.
+if __name__ == "__main__" and (__package__ is None or __package__ == ""):
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
     import keras_maskrcnn.bin
     __package__ = "keras_maskrcnn.bin"
